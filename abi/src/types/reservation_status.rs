@@ -1,7 +1,5 @@
 use crate::{ReservationStatus, RsvpStatus};
 
-
-
 impl From<RsvpStatus> for ReservationStatus {
     fn from(r: RsvpStatus) -> Self {
         match r {

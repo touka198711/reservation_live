@@ -11,7 +11,7 @@ async-trait = "0.1.58"
 chrono = "0.4.22"
 prost-types = "0.11"
 sqlx = { version = "0.6.2", features = ["postgres", "runtime-tokio-rustls", "chrono", "uuid"] }
-sqlx-database-tester = { version = "0.4.2", features = ["runtime-tokio"] }
+# sqlx-database-tester = { version = "0.4.2", features = ["runtime-tokio"] }
 
 [dev-dependencies]
 sqlx-database-tester = { version = "0.4.2", features = ["runtime-tokio"] }

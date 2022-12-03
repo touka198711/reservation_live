@@ -21,7 +21,7 @@ Basic architecture:
 
 We should use gRPC  as a service interface. Below is the proto defition:
 
-```proto
+```protobuf
 enum ResercationStatus {
     UNKNOWN = 0;
     PENDIGN = 1;
@@ -107,7 +107,7 @@ service ReservationService {
 
 We use postgres as the database. Below is the schema
 
-```sql
+```postgresql
 CREATE SCHEMA rsvp;
 CREATE TYPE rsvp.reservation_status AS ENUM ('unknown', 'pending', 'confirmed', 'blocked');
 

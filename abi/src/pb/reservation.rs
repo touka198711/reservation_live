@@ -69,19 +69,33 @@ pub struct GetResponse {
     #[prost(message, optional, tag = "1")]
     pub reservation: ::core::option::Option<Reservation>,
 }
-#[derive(Clone, PartialEq, ::prost::Message)]
+#[derive(derive_builder::Builder, Clone, PartialEq, ::prost::Message)]
 pub struct ReservationQuery {
     #[prost(string, tag = "1")]
+    #[builder(setter(into), default)]
     pub resource_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
+    #[builder(setter(into), default)]
     pub user_id: ::prost::alloc::string::String,
     /// use status to filter result. If UNKNOWN, return all reservation
     #[prost(enumeration = "ReservationStatus", tag = "3")]
+    #[builder(setter(into), default)]
     pub status: i32,
     #[prost(message, optional, tag = "4")]
+    #[builder(setter(into, strip_option))]
     pub start: ::core::option::Option<::prost_types::Timestamp>,
     #[prost(message, optional, tag = "5")]
+    #[builder(setter(into, strip_option))]
     pub end: ::core::option::Option<::prost_types::Timestamp>,
+    #[prost(int32, tag = "6")]
+    #[builder(setter(into), default = "1")]
+    pub page: i32,
+    #[prost(int32, tag = "7")]
+    #[builder(setter(into), default = "10")]
+    pub pagesize: i32,
+    #[prost(bool, tag = "8")]
+    #[builder(setter(into), default)]
+    pub desc: bool,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct QueryRequest {
@@ -301,7 +315,7 @@ pub mod reservation_service_client {
                 .server_streaming(request.into_request(), path, codec)
                 .await
         }
-        pub async fn list(
+        pub async fn listen(
             &mut self,
             request: impl tonic::IntoRequest<super::ListenRequest>,
         ) -> Result<tonic::Response<tonic::codec::Streaming<super::Reservation>>, tonic::Status>
@@ -313,7 +327,8 @@ pub mod reservation_service_client {
                 )
             })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static("/reservation.ReservationService/list");
+            let path =
+                http::uri::PathAndQuery::from_static("/reservation.ReservationService/listen");
             self.inner
                 .server_streaming(request.into_request(), path, codec)
                 .await
@@ -355,14 +370,14 @@ pub mod reservation_service_server {
             &self,
             request: tonic::Request<super::QueryRequest>,
         ) -> Result<tonic::Response<Self::queryStream>, tonic::Status>;
-        ///Server streaming response type for the list method.
-        type listStream: futures_core::Stream<Item = Result<super::Reservation, tonic::Status>>
+        ///Server streaming response type for the listen method.
+        type listenStream: futures_core::Stream<Item = Result<super::Reservation, tonic::Status>>
             + Send
             + 'static;
-        async fn list(
+        async fn listen(
             &self,
             request: tonic::Request<super::ListenRequest>,
-        ) -> Result<tonic::Response<Self::listStream>, tonic::Status>;
+        ) -> Result<tonic::Response<Self::listenStream>, tonic::Status>;
     }
     #[derive(Debug)]
     pub struct ReservationServiceServer<T: ReservationService> {
@@ -607,14 +622,15 @@ pub mod reservation_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/reservation.ReservationService/list" => {
+                "/reservation.ReservationService/listen" => {
                     #[allow(non_camel_case_types)]
-                    struct listSvc<T: ReservationService>(pub Arc<T>);
+                    struct listenSvc<T: ReservationService>(pub Arc<T>);
                     impl<T: ReservationService>
-                        tonic::server::ServerStreamingService<super::ListenRequest> for listSvc<T>
+                        tonic::server::ServerStreamingService<super::ListenRequest>
+                        for listenSvc<T>
                     {
                         type Response = super::Reservation;
-                        type ResponseStream = T::listStream;
+                        type ResponseStream = T::listenStream;
                         type Future =
                             BoxFuture<tonic::Response<Self::ResponseStream>, tonic::Status>;
                         fn call(
@@ -622,7 +638,7 @@ pub mod reservation_service_server {
                             request: tonic::Request<super::ListenRequest>,
                         ) -> Self::Future {
                             let inner = self.0.clone();
-                            let fut = async move { (*inner).list(request).await };
+                            let fut = async move { (*inner).listen(request).await };
                             Box::pin(fut)
                         }
                     }
@@ -631,7 +647,7 @@ pub mod reservation_service_server {
                     let inner = self.inner.clone();
                     let fut = async move {
                         let inner = inner.0;
-                        let method = listSvc(inner);
+                        let method = listenSvc(inner);
                         let codec = tonic::codec::ProstCodec::default();
                         let mut grpc = tonic::server::Grpc::new(codec).apply_compression_config(
                             accept_compression_encodings,

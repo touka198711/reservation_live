@@ -1,5 +1,5 @@
 use crate::{ReservationId, ReservationManager, Rsvp};
-use abi::ReservationStatus;
+use abi::{ReservationStatus, Validator};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use sqlx::{postgres::types::PgRange, types::Uuid, PgPool, Row};
@@ -11,7 +11,7 @@ impl Rsvp for ReservationManager {
 
         let status = ReservationStatus::from_i32(rsvp.status).unwrap_or(ReservationStatus::Pending);
 
-        let range: PgRange<DateTime<Utc>> = rsvp.get_timespan().into();
+        let range: PgRange<DateTime<Utc>> = rsvp.get_timespan();
 
         let sql = r#"
             INSERT INTO rsvp.reservations (user_id, resource_id, timespan, note, status) 
@@ -86,9 +86,34 @@ impl Rsvp for ReservationManager {
 
     async fn query(
         &self,
-        _query: abi::ReservationQuery,
+        query: abi::ReservationQuery,
     ) -> Result<Vec<abi::Reservation>, abi::Error> {
-        todo!()
+        let user_id = str_to_option(&query.user_id);
+        let resource_id = str_to_option(&query.resource_id);
+        let timespan = query.timespan();
+        let status = ReservationStatus::from_i32(query.status)
+            .unwrap_or(ReservationStatus::Pending);
+
+        let rsvps = sqlx::query_as::<_, abi::Reservation>("SELECT * FROM rsvp.query($1, $2, $3, $4::rsvp.reservation_status, $5, $6, $7)")
+            .bind(user_id)
+            .bind(resource_id)
+            .bind(timespan)
+            .bind(status.to_string())
+            .bind(query.page)
+            .bind(query.desc)
+            .bind(query.pagesize)
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(rsvps)
+    }
+}
+
+fn str_to_option(s: &str) -> Option<&str> {
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
     }
 }
 
@@ -101,7 +126,7 @@ impl ReservationManager {
 #[cfg(test)]
 mod tests {
 
-    use abi::{Reservation, ReservationConflictInfo, ReservationConflict, ReservationWindow};
+    use abi::{Reservation, ReservationConflictInfo, ReservationConflict, ReservationWindow, ReservationQueryBuilder};
     use chrono::{DateTime, FixedOffset};
 
     use super::*;
@@ -222,6 +247,50 @@ mod tests {
         let _ = manager.delete(rsvp.id.clone()).await.unwrap();
         let err = manager.get(rsvp.id).await.unwrap_err();
         println!("{:?}", err);
+    }
+
+    #[sqlx_database_tester::test(pool(variable = "migrated_pool", migrations = "../migrations"))]
+    async fn query_reservation_should_work() {
+        let (manager, rsvp) = make_tyr_reservation(&migrated_pool.clone()).await;
+
+        let query = ReservationQueryBuilder::default()
+            .user_id("tyrId")
+            .resource_id("1021")
+            .start("2022-12-25T15:00:00-0700".parse::<prost_types::Timestamp>().unwrap())
+            .end("2022-12-28T12:00:00-0700".parse::<prost_types::Timestamp>().unwrap())
+            .status(ReservationStatus::Pending)
+            .build().unwrap();
+
+        let rsvps = manager.query(query).await.unwrap();
+
+        assert_eq!(rsvps.len(), 1);
+        assert_eq!(rsvps[0], rsvp);
+
+        let query = ReservationQueryBuilder::default()
+            .user_id("tyrId")
+            .resource_id("1021")
+            .start("2023-01-25T15:00:00-0700".parse::<prost_types::Timestamp>().unwrap())
+            .end("2023-02-28T12:00:00-0700".parse::<prost_types::Timestamp>().unwrap())
+            .status(ReservationStatus::Pending)
+            .build().unwrap();
+
+        let rsvps1  = manager.query(query).await.unwrap();
+        
+        assert!(rsvps1.is_empty());
+        
+        let _rsvp =  manager.change_status(rsvps[0].id.clone()).await.unwrap();
+
+        let query = ReservationQueryBuilder::default()
+            .user_id("tyrId")
+            .resource_id("1021")
+            .start("2022-12-25T15:00:00-0700".parse::<prost_types::Timestamp>().unwrap())
+            .end("2022-12-28T12:00:00-0700".parse::<prost_types::Timestamp>().unwrap())
+            .status(ReservationStatus::Pending)
+            .build().unwrap();
+
+        let rsvps1  = manager.query(query).await.unwrap();
+
+        assert!(rsvps1.is_empty());
     }
 
 

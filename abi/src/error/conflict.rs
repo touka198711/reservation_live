@@ -64,8 +64,8 @@ impl TryFrom<HashMap<String, String>> for ReservationWindow {
         let end = parse_date(split.next().ok_or(())?)?;
         Ok(Self {
             rid: value.get("resource_id").unwrap().to_owned(),
-            start: start,
-            end: end,
+            start,
+            end,
         })
     }
 }

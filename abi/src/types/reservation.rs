@@ -1,15 +1,15 @@
-use std::ops::{Bound, Range};
+use std::ops::Bound;
 
 use chrono::{DateTime, FixedOffset, TimeZone, Utc};
 use sqlx::{
     postgres::{types::PgRange, PgRow},
-    FromRow, Row, types::Uuid,
+    types::Uuid,
+    FromRow, Row,
 };
 
-use crate::{
-    utils::{to_datetime, to_timestamp},
-    Error, Reservation, ReservationStatus, RsvpStatus,
-};
+use crate::{utils::to_timestamp, Error, Reservation, ReservationStatus, RsvpStatus, Validator};
+
+use super::{get_timespan, validate_range};
 
 impl Reservation {
     pub fn new_pending(
@@ -30,7 +30,13 @@ impl Reservation {
         }
     }
 
-    pub fn validate(&self) -> Result<(), Error> {
+    pub fn get_timespan(&self) -> PgRange<DateTime<Utc>> {
+        get_timespan(self.start_time.as_ref(), self.end_time.as_ref())
+    }
+}
+
+impl Validator for Reservation {
+    fn validate(&self) -> Result<(), Error> {
         if self.user_id.is_empty() {
             return Err(Error::InvalidUserId("".into()));
         }
@@ -39,25 +45,9 @@ impl Reservation {
             return Err(Error::InvalidResourceId("".into()));
         }
 
-        if self.start_time.is_none() || self.end_time.is_none() {
-            return Err(Error::InvalidTime);
-        }
-
-        let start = to_datetime(&self.start_time).unwrap();
-        let end = to_datetime(&self.end_time).unwrap();
-
-        if start >= end {
-            return Err(Error::InvalidTime);
-        }
+        validate_range(self.start_time.as_ref(), self.end_time.as_ref())?;
 
         Ok(())
-    }
-
-    pub fn get_timespan(&self) -> Range<DateTime<Utc>> {
-        let start = to_datetime(&self.start_time).unwrap();
-        let end = to_datetime(&self.end_time).unwrap();
-
-        Range { start, end }
     }
 }
 
@@ -73,7 +63,7 @@ impl FromRow<'_, PgRow> for Reservation {
             to_timestamp(FixedOffset::east(0).from_utc_datetime(&range.end.unwrap().naive_utc()));
 
         let status: RsvpStatus = row.get("status");
-        
+
         let id: Uuid = row.get("id");
 
         Ok(Self {

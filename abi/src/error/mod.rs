@@ -2,7 +2,7 @@ mod conflict;
 
 use sqlx::postgres::PgDatabaseError;
 
-pub use self::conflict::{ReservationConflictInfo, ReservationConflict, ReservationWindow};
+pub use self::conflict::{ReservationConflict, ReservationConflictInfo, ReservationWindow};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {

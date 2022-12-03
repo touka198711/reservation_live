@@ -80,6 +80,9 @@ message ReservationQuery {
       ReservationStatus status = 3;
       google.protobuf.Timestamp start = 4;
       google.protobuf.Timestamp end = 5;
+      int32 page = 6;
+      int32 pagesize = 7;
+      bool desc = 8;
 }
 
 message QueryRequest {
@@ -98,5 +101,5 @@ service ReservationService {
       rpc cancel(CancelRequest) returns (CancelResponse);    
       rpc get(GetRequest) returns (GetResponse);
       rpc query(QueryRequest) returns (stream Reservation);
-      rpc list(ListenRequest) returns (stream Reservation);
+      rpc listen(ListenRequest) returns (stream Reservation);
 }
